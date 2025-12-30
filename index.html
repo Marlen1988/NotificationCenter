@@ -480,58 +480,86 @@
         }
         
         function openDebugPanel() {
+            // Собираем последние 5 событий из истории
+            const recentEvents = [
+                ...Array.from(errorHistory.values()),
+                ...Array.from(infoHistory.values())
+            ].sort((a, b) => {
+                const timeA = a.time || '00:00:00';
+                const timeB = b.time || '00:00:00';
+                return timeB.localeCompare(timeA);
+            }).slice(0, 5).map(e => ({
+                type: e.type,
+                message: e.message,
+                environment: e.env,
+                count: e.count,
+                time: e.time
+            }));
+
             const debugInfo = {
-                "fp.log.info()": {
-                    description: "Информационное сообщение (автозакрытие через 5 сек)",
-                    example: {
-                        message: "Система работает",
-                        options: {
-                            environment: "runtime | studio | production",
-                            timer: 5000,
-                            details: "Дополнительная информация..."
-                        }
-                    }
+                "📖 API (Copy & Paste Ready)": {
+                    "fp.log.info": `fp.log.info("Система работает", {
+  environment: "runtime",
+  timer: 5000,
+  details: "Дополнительная информация..."
+});`,
+                    
+                    "fp.log.warning": `fp.log.warning("Ошибка чтения архива!", {
+  environment: "studio",
+  timer: 10000,
+  details: "10:31:26.089 [warning] Ошибка при чтении..."
+});`,
+                    
+                    "fp.log.warning (infinity)": `fp.log.warning("Требуется внимание!", {
+  environment: "studio",
+  timer: "infinity",
+  details: "Не закроется автоматически"
+});`,
+                    
+                    "fp.log.error": `fp.log.error("Критический сбой", {
+  environment: "runtime",
+  timer: "infinity",
+  details: "Stack trace или подробности ошибки..."
+});`
                 },
-                "fp.log.warning()": {
-                    description: "Предупреждение (автозакрытие через 10 сек)",
-                    example: {
-                        message: "Ошибка чтения архива!",
-                        options: {
-                            environment: "studio",
-                            timer: "10000 или 'infinity'",
-                            details: "10:31:26.089 [warning] Ошибка при чтении..."
-                        }
-                    }
+                
+                "📊 Current Statistics": {
+                    activeToastsCount: activeToasts.size,
+                    infoHistoryCount: infoHistory.size,
+                    errorHistoryCount: errorHistory.size,
+                    unreadNotifications: unreadCount
                 },
-                "fp.log.error()": {
-                    description: "Критическая ошибка (не закрывается)",
-                    example: {
-                        message: "Критический сбой",
-                        options: {
-                            environment: "production",
-                            timer: "infinity",
-                            details: "Stack trace или подробности..."
+                
+                "🔴 Active Toast Notifications": Array.from(activeToasts.entries()).map(([key, value]) => ({
+                    message: key.split(':')[1] || key,
+                    type: key.split(':')[0],
+                    duplicateCount: value.count,
+                    autoClose: value.timerId ? true : false
+                })),
+                
+                "📝 Recent History (last 5 events)": recentEvents.length > 0 ? recentEvents : [
+                    { info: "История пуста. Создайте несколько уведомлений!" }
+                ],
+                
+                "⚙️ Parameters Reference": {
+                    environment: {
+                        description: "Среда выполнения",
+                        values: ["runtime", "studio"],
+                        note: "runtime = отображение realtime, studio = разработка мнемосхем"
+                    },
+                    timer: {
+                        description: "Время до автозакрытия (мс) или 'infinity'",
+                        values: ["number", "'infinity'"],
+                        defaults: {
+                            info: 5000,
+                            warning: 10000,
+                            error: "infinity"
                         }
+                    },
+                    details: {
+                        description: "Подробная информация (опционально)",
+                        type: "string"
                     }
-                },
-                activeToasts: Array.from(activeToasts.entries()).map(([key, value]) => ({
-                    key: key,
-                    count: value.count,
-                    hasTimer: !!value.timerId
-                })),
-                infoHistory: Array.from(infoHistory.entries()).map(([key, value]) => ({
-                    key: key,
-                    ...value
-                })),
-                errorHistory: Array.from(errorHistory.entries()).map(([key, value]) => ({
-                    key: key,
-                    ...value
-                })),
-                statistics: {
-                    totalActiveToasts: activeToasts.size,
-                    totalInfoHistory: infoHistory.size,
-                    totalErrorHistory: errorHistory.size,
-                    unreadCount: unreadCount
                 }
             };
             
@@ -545,15 +573,33 @@
         }
         
         function copyDebugJSON() {
+            const recentEvents = [
+                ...Array.from(errorHistory.values()),
+                ...Array.from(infoHistory.values())
+            ].sort((a, b) => {
+                const timeA = a.time || '00:00:00';
+                const timeB = b.time || '00:00:00';
+                return timeB.localeCompare(timeA);
+            }).slice(0, 5);
+
             const debugInfo = {
-                "fp.log API": {
-                    info: "fp.log.info(message, { environment, timer, details })",
-                    warning: "fp.log.warning(message, { environment, timer, details })",
-                    error: "fp.log.error(message, { environment, timer, details })"
+                "API": {
+                    info: 'fp.log.info("Message", { environment: "runtime", timer: 5000, details: "..." })',
+                    warning: 'fp.log.warning("Message", { environment: "studio", timer: 10000, details: "..." })',
+                    error: 'fp.log.error("Message", { environment: "runtime", timer: "infinity", details: "..." })'
                 },
-                activeToasts: Array.from(activeToasts.entries()).map(([k, v]) => ({ key: k, count: v.count })),
-                infoHistory: Array.from(infoHistory.entries()).map(([k, v]) => ({ key: k, ...v })),
-                errorHistory: Array.from(errorHistory.entries()).map(([k, v]) => ({ key: k, ...v }))
+                "Statistics": {
+                    activeToasts: activeToasts.size,
+                    infoHistory: infoHistory.size,
+                    errorHistory: errorHistory.size,
+                    unread: unreadCount
+                },
+                "Active Toasts": Array.from(activeToasts.entries()).map(([k, v]) => ({ 
+                    message: k.split(':')[1] || k, 
+                    count: v.count,
+                    autoClose: !!v.timerId
+                })),
+                "Recent Events": recentEvents
             };
             
             const jsonStr = JSON.stringify(debugInfo, null, 2);
