@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Единый Центр Уведомлений</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+        /* Toast Animations */
+        .toast-fade-in {
+            animation: toastFadeIn 0.3s ease-out;
+        }
+        @keyframes toastFadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .toast-fade-out {
+            animation: toastFadeOut 0.5s ease-in forwards;
+        }
+        @keyframes toastFadeOut {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(100%); }
+        }
+        
+        .toast-pulse {
+            animation: toastPulse 0.4s ease-out;
+        }
+        @keyframes toastPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+        
+        .bell-panel-animation {
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        .bell-panel-hidden {
+            opacity: 0;
+            transform: translateY(-10px);
+            pointer-events: none;
+        }
+        
+        .tab-active {
+            border-bottom-color: #3b82f6;
+            color: #3b82f6;
+            font-weight: 500;
+        }
+        .tab-inactive {
+            border-bottom-color: transparent;
+            color: #6b7280;
+        }
+        
+        /* JSON Syntax Highlighting */
+        .json-key { color: #9333ea; font-weight: 600; }
+        .json-string { color: #16a34a; }
+        .json-number { color: #2563eb; }
+        .json-boolean { color: #dc2626; font-weight: 600; }
+        .json-null { color: #6b7280; font-style: italic; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+
+    <!-- Кнопки симуляции -->
+    <div class="flex flex-wrap gap-4 mb-8">
+        <button onclick="fp.log.info('Система работает', { environment: 'runtime' })" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300">
+            Добавить Info
+        </button>
+        <button id="storm-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300">
+            Запустить Шторм (20 сообщений)
+        </button>
+        <button id="long-text-btn" class="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300">
+            Длинный текст (Scrolling)
+        </button>
+        <button id="test-warning-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300">
+            Warning (Infinity)
+        </button>
+        <button onclick="fp.log.error('Критический сбой', { environment: 'studio' })" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300">
+            Error
+        </button>
+        <button id="debug-btn" class="bg-gray-700 hover:bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300">
+            🐛 Debug JSON
+        </button>
+    </div>
+
+    <!-- UI: КОЛОКОЛЬЧИК И ПАНЕЛЬ -->
+    <div class="fixed top-4 right-4 z-50">
+        <button id="bell-btn" class="relative bg-white p-2 rounded-full shadow-md text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+            <span id="bell-badge" class="hidden absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">0</span>
+        </button>
+
+        <div id="bell-panel" class="bell-panel-animation bell-panel-hidden absolute top-14 right-0 w-96 bg-white rounded-lg shadow-xl border border-gray-200">
+            <div class="flex justify-between items-center p-3 border-b border-gray-200">
+                <h3 class="font-semibold text-gray-800">Центр Уведомлений</h3>
+                <button id="close-bell-btn" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                </button>
+            </div>
+
+            <div class="flex border-b border-gray-200">
+                <button id="tab-info" class="tab-btn flex-1 py-2 px-4 text-sm text-center border-b-2 tab-active">События (<span id="info-count">0</span>)</button>
+                <button id="tab-errors" class="tab-btn flex-1 py-2 px-4 text-sm text-center border-b-2 tab-inactive">Ошибки (<span id="error-count">0</span>)</button>
+            </div>
+            
+            <div class="max-h-96 overflow-y-auto">
+                <div id="panel-info" class="p-2">
+                    <p id="info-empty-state" class="text-center text-gray-500 p-4">Нет новых уведомлений</p>
+                    <div id="info-list"></div>
+                </div>
+                <div id="panel-errors" class="hidden">
+                    <p id="error-empty-state" class="text-center text-gray-500 p-4">Нет ошибок или предупреждений</p>
+                    <div id="error-list-history"></div>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center p-2 border-t border-gray-200">
+                <button id="save-history-btn" class="text-gray-500 hover:text-blue-600 p-1.5 rounded-md hover:bg-gray-100" title="Сохранить в файл">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                </button>
+                <button id="clear-history-btn" class="text-sm text-blue-500 hover:underline px-2.5">Очистить историю</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- UI: КОНТЕЙНЕР ДЛЯ ТОСТОВ -->
+    <div id="toast-container" class="fixed bottom-4 right-4 w-full max-w-lg space-y-3 z-40"></div>
+
+    <!-- UI: МОДАЛКА ПЕРЕИМЕНОВАНИЯ -->
+    <div id="rename-panel" class="hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-2xl border border-gray-200 w-full max-w-md z-[60]">
+        <div class="flex justify-between items-center p-4 border-b border-gray-200">
+            <h3 class="font-semibold text-gray-800">Сохранение логов</h3>
+            <button onclick="closeRenamePanel()" class="text-gray-400 hover:text-gray-600"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg></button>
+        </div>
+        <div class="p-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Название файла:</label>
+            <input type="text" id="filename-input" class="w-full px-3 py-2 border border-gray-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="flex justify-end items-center space-x-3 p-4 bg-gray-50 border-t border-gray-200 rounded-b-lg">
+            <button onclick="closeRenamePanel()" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">Отмена</button>
+            <button id="save-rename-btn" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">Сохранить</button>
+        </div>
+    </div>
+
+    <!-- UI: МОДАЛКА DEBUG JSON -->
+    <div id="debug-panel" class="hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-2xl border border-gray-200 w-full max-w-3xl z-[60]">
+        <div class="flex justify-between items-center p-4 border-b border-gray-200">
+            <div class="flex items-center space-x-2">
+                <span class="text-2xl">🐛</span>
+                <h3 class="font-semibold text-gray-800">Debug: fp.log API Structure</h3>
+            </div>
+            <button onclick="closeDebugPanel()" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+            </button>
+        </div>
+        
+        <div class="p-6 max-h-[70vh] overflow-y-auto bg-gray-50">
+            <div class="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+                <pre id="debug-json-content" class="text-sm font-mono text-gray-100"></pre>
+            </div>
+        </div>
+        
+        <div class="flex justify-between items-center p-4 bg-gray-50 border-t border-gray-200 rounded-b-lg">
+            <button onclick="copyDebugJSON()" class="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                <span id="copy-debug-text">Копировать JSON</span>
+            </button>
+            <button onclick="closeDebugPanel()" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                Закрыть
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // === СОСТОЯНИЕ ===
+        const infoHistory = new Map();
+        const errorHistory = new Map();
+        const activeToasts = new Map();
+        let unreadCount = 0;
+
+        const iconSets = {
+            info: `<svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
+            warning: `<svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`,
+            error: `<svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>`
+        };
+
+        const copyIconSVG = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>`;
+        const downIconSVG = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+        const upIconSVG = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>`;
+
+        // === ГЛОБАЛЬНЫЙ API ===
+        window.fp = {
+            log: {
+                info: (msg, opts = {}) => _dispatch('info', msg, { timer: 5000, ...opts }),
+                warning: (msg, opts = {}) => _dispatch('warning', msg, { timer: 10000, ...opts }),
+                error: (msg, opts = {}) => _dispatch('error', msg, { timer: "infinity", ...opts })
+            }
+        };
+
+        function _dispatch(type, message, options) {
+            const key = `${type}:${message}`;
+            const details = options.details || message;
+            const env = options.environment || 'runtime';
+            const timerValue = (options.timer === "infinity") ? null : (options.timer || 5000);
+
+            // 1. Агрегация (дедупликация)
+            if (activeToasts.has(key)) {
+                const entry = activeToasts.get(key);
+                entry.count++;
+                entry.element.querySelector('.toast-count').textContent = `(${entry.count})`;
+                
+                if (entry.timerId) clearTimeout(entry.timerId);
+                if (timerValue) {
+                    entry.timerId = setTimeout(() => _removeToast(key), timerValue);
+                }
+
+                document.getElementById('toast-container').prepend(entry.element);
+                entry.element.classList.remove('toast-pulse');
+                void entry.element.offsetWidth; // Restart animation
+                entry.element.classList.add('toast-pulse');
+            } else {
+                // 2. Новое окно
+                const toast = _createToastUI(type, message, details, env, key);
+                document.getElementById('toast-container').prepend(toast);
+                
+                const timerId = timerValue ? setTimeout(() => _removeToast(key), timerValue) : null;
+                activeToasts.set(key, { element: toast, count: 1, timerId });
+            }
+
+            // 3. Сохранение в историю
+            _addToHistory(type, message, details, env, key);
+        }
+
+        function _createToastUI(type, message, details, env, key) {
+            const div = document.createElement('div');
+            div.className = 'toast-fade-in bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden w-full';
+            
+            const colorClass = type === 'error' ? 'text-red-600' : (type === 'warning' ? 'text-yellow-600' : 'text-blue-600');
+            const detailsId = `det-${Math.random().toString(36).substr(2, 9)}`;
+
+            div.innerHTML = `
+                <div class="flex items-center justify-between p-3 border-b border-gray-100">
+                    <div class="flex items-center space-x-2 min-w-0">
+                        ${iconSets[type]}
+                        <p class="text-sm font-semibold truncate" title="${message}"><span class="toast-count ${colorClass}">(1)</span> ${message}</p>
+                    </div>
+                    <button onclick="_removeToast('${key}')" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                    </button>
+                </div>
+                <div class="bg-gray-50 px-3 py-2 flex justify-between items-center border-b border-gray-100">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400">${env}</span>
+                    <div class="flex space-x-1">
+                        <button class="btn-copy p-1 hover:bg-gray-200 rounded text-gray-500" title="Копировать">${copyIconSVG}</button>
+                        <button class="btn-toggle p-1 hover:bg-gray-200 rounded text-gray-500" title="Детали">${downIconSVG}</button>
+                    </div>
+                </div>
+                <div id="${detailsId}" class="hidden p-4 bg-gray-50 border-t border-gray-200">
+                    <pre class="text-xs text-gray-700 max-h-40 overflow-y-auto">${details}</pre>
+                </div>
+            `;
+
+            const btnCopy = div.querySelector('.btn-copy');
+            const btnToggle = div.querySelector('.btn-toggle');
+            const panel = div.querySelector(`#${detailsId}`);
+
+            btnCopy.onclick = () => _copy(details, btnCopy);
+            btnToggle.onclick = () => {
+                const hidden = panel.classList.toggle('hidden');
+                btnToggle.innerHTML = hidden ? downIconSVG : upIconSVG;
+            };
+
+            return div;
+        }
+
+        function _removeToast(key) {
+            const entry = activeToasts.get(key);
+            if (!entry) return;
+            if (entry.timerId) clearTimeout(entry.timerId);
+            entry.element.classList.replace('toast-fade-in', 'toast-fade-out');
+            setTimeout(() => { entry.element.remove(); activeToasts.delete(key); }, 400);
+        }
+
+        function _addToHistory(type, message, details, env, key) {
+            const targetMap = (type === 'info') ? infoHistory : errorHistory;
+            const now = new Date().toLocaleTimeString();
+
+            if (targetMap.has(key)) {
+                const entry = targetMap.get(key);
+                entry.count++;
+                entry.time = now;
+            } else {
+                targetMap.set(key, { type, message, details, env, count: 1, time: now });
+            }
+
+            unreadCount++;
+            _updateBellUI();
+            if (!document.getElementById('bell-panel').classList.contains('bell-panel-hidden')) _renderLists();
+        }
+
+        function _updateBellUI() {
+            const badge = document.getElementById('bell-badge');
+            if (unreadCount > 0 && document.getElementById('bell-panel').classList.contains('bell-panel-hidden')) {
+                badge.classList.remove('hidden');
+                badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+            } else {
+                badge.classList.add('hidden');
+            }
+            document.getElementById('info-count').textContent = infoHistory.size;
+            document.getElementById('error-count').textContent = errorHistory.size;
+        }
+
+        function _renderLists() {
+            _renderSpecificList(infoHistory, 'info-list', 'info-empty-state');
+            _renderSpecificList(errorHistory, 'error-list-history', 'error-empty-state');
+        }
+
+        function _renderSpecificList(map, listId, emptyId) {
+            const container = document.getElementById(listId);
+            const empty = document.getElementById(emptyId);
+            if (map.size === 0) { container.innerHTML = ''; empty.classList.remove('hidden'); return; }
+            empty.classList.add('hidden');
+            container.innerHTML = '';
+
+            [...map.values()].reverse().forEach(entry => {
+                const item = document.createElement('div');
+                item.className = 'border-b border-gray-100 p-3 hover:bg-gray-50';
+                const colorClass = entry.type === 'error' ? 'text-red-600' : (entry.type === 'warning' ? 'text-yellow-600' : 'text-blue-600');
+                const detailsId = `hist-${Math.random().toString(36).substr(2, 5)}`;
+
+                item.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="flex space-x-2 min-w-0">
+                            <div class="mt-0.5">${iconSets[entry.type]}</div>
+                            <div class="min-w-0">
+                                <p class="text-sm font-medium truncate" title="${entry.message}"><span class="${colorClass}">(${entry.count})</span> ${entry.message}</p>
+                                <p class="text-[10px] text-gray-400 font-bold uppercase">${entry.time} • ${entry.env}</p>
+                            </div>
+                        </div>
+                        <div class="flex space-x-1 shrink-0 ml-2">
+                            <button class="btn-copy-h p-1 hover:bg-gray-200 rounded text-gray-400">${copyIconSVG}</button>
+                            <button class="btn-toggle-h p-1 hover:bg-gray-200 rounded text-gray-400">${downIconSVG}</button>
+                        </div>
+                    </div>
+                    <div id="${detailsId}" class="hidden mt-2 p-2 bg-gray-100 rounded">
+                        <pre class="text-[11px] text-gray-600 max-h-32 overflow-y-auto">${entry.details}</pre>
+                    </div>
+                `;
+                const btnCopy = item.querySelector('.btn-copy-h');
+                const btnToggle = item.querySelector('.btn-toggle-h');
+                const panel = item.querySelector(`#${detailsId}`);
+                btnCopy.onclick = (e) => { e.stopPropagation(); _copy(entry.details, btnCopy); };
+                btnToggle.onclick = (e) => { e.stopPropagation(); const hidden = panel.classList.toggle('hidden'); btnToggle.innerHTML = hidden ? downIconSVG : upIconSVG; };
+                container.appendChild(item);
+            });
+        }
+
+        function _copy(text, btn) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            const original = btn.innerHTML;
+            btn.innerHTML = `<svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>`;
+            setTimeout(() => btn.innerHTML = original, 1500);
+        }
+
+        // TABS
+        document.getElementById('tab-info').onclick = () => {
+            document.getElementById('tab-info').className = 'tab-btn flex-1 py-2 px-4 text-sm text-center border-b-2 tab-active';
+            document.getElementById('tab-errors').className = 'tab-btn flex-1 py-2 px-4 text-sm text-center border-b-2 tab-inactive';
+            document.getElementById('panel-info').classList.remove('hidden');
+            document.getElementById('panel-errors').classList.add('hidden');
+        };
+        document.getElementById('tab-errors').onclick = () => {
+            document.getElementById('tab-errors').className = 'tab-btn flex-1 py-2 px-4 text-sm text-center border-b-2 tab-active';
+            document.getElementById('tab-info').className = 'tab-btn flex-1 py-2 px-4 text-sm text-center border-b-2 tab-inactive';
+            document.getElementById('panel-errors').classList.remove('hidden');
+            document.getElementById('panel-info').classList.add('hidden');
+        };
+
+        // BELL
+        document.getElementById('bell-btn').onclick = () => {
+            const isHidden = document.getElementById('bell-panel').classList.toggle('bell-panel-hidden');
+            if (!isHidden) { unreadCount = 0; _updateBellUI(); _renderLists(); }
+        };
+        document.getElementById('close-bell-btn').onclick = () => document.getElementById('bell-panel').classList.add('bell-panel-hidden');
+        document.getElementById('clear-history-btn').onclick = () => { infoHistory.clear(); errorHistory.clear(); unreadCount = 0; _updateBellUI(); _renderLists(); };
+
+        // SAVE
+        const renamePanel = document.getElementById('rename-panel');
+        const filenameInput = document.getElementById('filename-input');
+        document.getElementById('save-history-btn').onclick = () => {
+            const d = new Date();
+            filenameInput.value = `logs_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.txt`;
+            renamePanel.classList.remove('hidden');
+            filenameInput.focus();
+            filenameInput.select();
+        };
+        function closeRenamePanel() { renamePanel.classList.add('hidden'); }
+        document.getElementById('save-rename-btn').onclick = () => {
+            let out = "--- LOG HISTORY ---\n\n";
+            [...errorHistory.values(), ...infoHistory.values()].forEach(e => {
+                out += `[${e.time}] [${e.type.toUpperCase()}] [${e.env}] (x${e.count}) ${e.message}\nDetails: ${e.details}\n\n`;
+            });
+            const blob = new Blob([out], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filenameInput.value || 'logs.txt';
+            a.click();
+            closeRenamePanel();
+        };
+
+        // --- SPECIAL TEST TRIGGERS ---
+
+        // ШТОРМ: 20 сообщений в секунду
+        document.getElementById('storm-btn').onclick = () => {
+            for (let i = 1; i <= 20; i++) {
+                // Каждое 5-е сообщение будет уникальным, остальные будут группироваться
+                const msg = i % 5 === 0 ? `Уникальное сообщение шторма #${i}` : `Групповое уведомление шторма`;
+                fp.log.info(msg, { environment: 'runtime' });
+            }
+        };
+
+        // ДЛИННЫЙ ТЕКСТ
+        document.getElementById('long-text-btn').onclick = () => {
+            const longMessage = "Очень-очень-очень длинное название ошибки, которое точно не поместится в одну строку и должно быть обрезано многоточием в шапке уведомления для красоты интерфейса";
+            let longDetails = "--- НАЧАЛО ОГРОМНОГО ЛОГА ---\n";
+            for (let i = 0; i < 50; i++) {
+                longDetails += `Строка лога №${i}: Данные системы мониторинга... Статус: OK... Код: 0x${Math.floor(Math.random()*16777215).toString(16).toUpperCase()}\n`;
+            }
+            longDetails += "--- КОНЕЦ ОГРОМНОГО ЛОГА ---";
+            
+            fp.log.error(longMessage, { 
+                environment: 'studio',
+                details: longDetails 
+            });
+        };
+
+        document.getElementById('test-warning-btn').onclick = () => {
+            fp.log.warning("Ошибка чтения архива!", {
+                environment: "studio",
+                timer: "infinity",
+                details: "10:31:26.089 [warning] Ошибка при чтении архива /root/FP/PROJECT/KAZ/AKMOLA/"
+            });
+        };
+
+        // === DEBUG PANEL ===
+        const debugPanel = document.getElementById('debug-panel');
+        const debugJsonContent = document.getElementById('debug-json-content');
+        
+        function syntaxHighlight(json) {
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                let cls = 'json-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'json-key';
+                    } else {
+                        cls = 'json-string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'json-boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'json-null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+        
+        function openDebugPanel() {
+            const debugInfo = {
+                "fp.log.info()": {
+                    description: "Информационное сообщение (автозакрытие через 5 сек)",
+                    example: {
+                        message: "Система работает",
+                        options: {
+                            environment: "runtime | studio | production",
+                            timer: 5000,
+                            details: "Дополнительная информация..."
+                        }
+                    }
+                },
+                "fp.log.warning()": {
+                    description: "Предупреждение (автозакрытие через 10 сек)",
+                    example: {
+                        message: "Ошибка чтения архива!",
+                        options: {
+                            environment: "studio",
+                            timer: "10000 или 'infinity'",
+                            details: "10:31:26.089 [warning] Ошибка при чтении..."
+                        }
+                    }
+                },
+                "fp.log.error()": {
+                    description: "Критическая ошибка (не закрывается)",
+                    example: {
+                        message: "Критический сбой",
+                        options: {
+                            environment: "production",
+                            timer: "infinity",
+                            details: "Stack trace или подробности..."
+                        }
+                    }
+                },
+                activeToasts: Array.from(activeToasts.entries()).map(([key, value]) => ({
+                    key: key,
+                    count: value.count,
+                    hasTimer: !!value.timerId
+                })),
+                infoHistory: Array.from(infoHistory.entries()).map(([key, value]) => ({
+                    key: key,
+                    ...value
+                })),
+                errorHistory: Array.from(errorHistory.entries()).map(([key, value]) => ({
+                    key: key,
+                    ...value
+                })),
+                statistics: {
+                    totalActiveToasts: activeToasts.size,
+                    totalInfoHistory: infoHistory.size,
+                    totalErrorHistory: errorHistory.size,
+                    unreadCount: unreadCount
+                }
+            };
+            
+            const jsonStr = JSON.stringify(debugInfo, null, 2);
+            debugJsonContent.innerHTML = syntaxHighlight(jsonStr);
+            debugPanel.classList.remove('hidden');
+        }
+        
+        function closeDebugPanel() {
+            debugPanel.classList.add('hidden');
+        }
+        
+        function copyDebugJSON() {
+            const debugInfo = {
+                "fp.log API": {
+                    info: "fp.log.info(message, { environment, timer, details })",
+                    warning: "fp.log.warning(message, { environment, timer, details })",
+                    error: "fp.log.error(message, { environment, timer, details })"
+                },
+                activeToasts: Array.from(activeToasts.entries()).map(([k, v]) => ({ key: k, count: v.count })),
+                infoHistory: Array.from(infoHistory.entries()).map(([k, v]) => ({ key: k, ...v })),
+                errorHistory: Array.from(errorHistory.entries()).map(([k, v]) => ({ key: k, ...v }))
+            };
+            
+            const jsonStr = JSON.stringify(debugInfo, null, 2);
+            const textarea = document.createElement('textarea');
+            textarea.value = jsonStr;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            
+            const btn = document.getElementById('copy-debug-text');
+            btn.textContent = '✅ Скопировано!';
+            setTimeout(() => btn.textContent = 'Копировать JSON', 2000);
+        }
+        
+        document.getElementById('debug-btn').onclick = openDebugPanel;
+
+    </script>
+</body>
+</html>
